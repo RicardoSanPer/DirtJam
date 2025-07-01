@@ -1,5 +1,6 @@
 #include <iostream>
 
+//Required to override SDL's default main
 #define SDL_MAIN_HANDLED
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_vulkan.h>
@@ -11,8 +12,11 @@
 
 int main(int argc, char* argv[])
 {
+	//Initializes the video subsystem
 	SDL_Init(SDL_INIT_VIDEO);
+	//Loads vulkan lib
 	SDL_Vulkan_LoadLibrary(nullptr);
+	//create window
 	SDL_Window* window = SDL_CreateWindow("Dirt Jam", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 640, 360, SDL_WINDOW_SHOWN | SDL_WINDOW_VULKAN);
 	
 	uint32_t extensionCount = 0;
@@ -28,6 +32,7 @@ int main(int argc, char* argv[])
 	SDL_Event windowEvent;
 	bool isRunning = true;
 
+	//Main loop
 	while (isRunning)
 	{
 		while (SDL_PollEvent(&windowEvent))
