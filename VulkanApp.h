@@ -8,6 +8,7 @@
 #include <stdexcept>
 #include <cstdlib>
 #include <vector>
+#include<optional>
 
 extern const uint32_t WINDOW_WIDTH;
 extern const uint32_t WINDOW_HEIGHT;
@@ -23,6 +24,26 @@ const std::vector<const char*> validationLayers =
 	const bool enableValidationLayers = true;
 #endif
 
+/**
+	Struct that holds the index to the device's queue families
+*/
+struct QueueFamiliesIndices
+{
+	/*
+	*	Each device has a list of supported queues. Family Indices
+	*	saves the index if the list corresponding to each queue.
+	*/ 
+	std::optional<uint32_t> graphicsFamily;
+
+	/*
+	It is considered complete if it has all the family queues needed.
+	*/ 
+	bool isComplete()
+	{
+		return graphicsFamily.has_value();
+	}
+};
+
 class VulkanApp
 {
 public:
@@ -37,10 +58,13 @@ private:
 	VkDebugUtilsMessengerEXT debugMessenger;
 
 	VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+	VkDevice device;
+	VkQueue graphicsQueue;
 
 	void initWindow();
 	
 	void initVulkan();
+
 	void createInstance();
 
 	void mainLoop();
@@ -48,6 +72,10 @@ private:
 
 	void pickPhysicalDevice();
 	bool isDeviceSuitable(VkPhysicalDevice device);
+
+	void createLogicalDevice();
+
+	QueueFamiliesIndices findQueueFamilies(VkPhysicalDevice device);
 
 	bool checkValidationLayerSupport();
 	std::vector<const char*> getRequiredExtensions();

@@ -24,8 +24,12 @@ void VulkanApp::initVulkan()
 	createInstance();
 	setupDebugMessenger();
 	pickPhysicalDevice();
+	createLogicalDevice();
 }
 
+/**
+	Creates the vulkan instance for the application.
+*/
 void VulkanApp::createInstance()
 {
 	if (enableValidationLayers && !checkValidationLayerSupport())
@@ -47,6 +51,7 @@ void VulkanApp::createInstance()
 	createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 	createInfo.pApplicationInfo = &appInfo;
 
+	//extensions needed
 	auto extensions = getRequiredExtensions();
 	createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
 	createInfo.ppEnabledExtensionNames = extensions.data();
@@ -97,15 +102,22 @@ void VulkanApp::cleanup()
 		DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
 	}
 
+	vkDestroyDevice(device, nullptr);
 	vkDestroyInstance(instance, nullptr);
 	SDL_DestroyWindow(window);
 	SDL_Quit();
 }
 
+/*
+	Extensions are optional features of vulkan. These are features that are not part of the API. For example, rendering to screen.
+	This function gets extensions that SDL requires, such as a vulkan surface (for rendering to screen).
+*/
 std::vector<const char*> VulkanApp::getRequiredExtensions()
 {
 	uint32_t sdlExtensionCount = 0;
 	const char** sdlExtensions = 0;
+
+	//Gets the extensions required by sdl to create a window
 	SDL_Vulkan_GetInstanceExtensions(window, &sdlExtensionCount, nullptr);
 
 	sdlExtensions = new const char* [sdlExtensionCount];
@@ -121,6 +133,10 @@ std::vector<const char*> VulkanApp::getRequiredExtensions()
 	return extensions;
 }
 
+/*
+	Picks a physical device to render, for now only the GPU.
+	More complex implementations could include a heuristic to pick one or many suitable ones.
+*/
 void VulkanApp::pickPhysicalDevice()
 {
 	uint32_t deviceCount = 0;
@@ -149,22 +165,112 @@ void VulkanApp::pickPhysicalDevice()
 	}
 }
 
+/*
+	The logical device acts as an interface between the application and the physical device.
+*/
+void VulkanApp::createLogicalDevice()
+{
+	QueueFamiliesIndices indices = findQueueFamilies(physicalDevice);
+
+	//Info to create a queue(s) in the logical device
+	VkDeviceQueueCreateInfo queueCreateInfo{};
+	queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+	queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
+	queueCreateInfo.queueCount = 1;
+
+	float queuePriority = 1.0f;
+	queueCreateInfo.pQueuePriorities = &queuePriority;
+
+	VkPhysicalDeviceFeatures deviceFeatures{};
+
+	//Info to create the device
+	VkDeviceCreateInfo createInfo{};
+	createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+	createInfo.pQueueCreateInfos = &queueCreateInfo;
+	createInfo.queueCreateInfoCount = 1;
+	createInfo.pEnabledFeatures = &deviceFeatures;
+	createInfo.enabledExtensionCount = 0;
+	
+	if (enableValidationLayers)
+	{
+		createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+		createInfo.ppEnabledLayerNames = validationLayers.data();
+	}
+	else
+	{
+		createInfo.enabledLayerCount = 0;
+	}
+
+	if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create logical device");
+	}
+	vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
+}
+
+/**
+	Determines if a physical device is suitable. For now it finds it suitable if it has all the queue families we need,	but any heuristic could be used (ie if it has certain features)
+*/
 bool VulkanApp::isDeviceSuitable(VkPhysicalDevice device)
 {
 	/*VkPhysicalDeviceProperties deviceProperties;
 	vkGetPhysicalDeviceProperties(device, &deviceProperties);
 
-	VkPhysicalDeviceFeatures deviceFeatures;
+	std::cout << deviceProperties.deviceName << std::endl;*/
+
+	/*VkPhysicalDeviceFeatures deviceFeatures;
 	vkGetPhysicalDeviceFeatures(device, &deviceFeatures);*/
 
-	return true;
+	QueueFamiliesIndices indices = findQueueFamilies(device);
+
+	return indices.isComplete();
 }
 
+/**
+	Finds the queue families available in device. A family may support certain type of operations such as compute, graphics, data transfer, etc.
+	A queue is basically a queue to which we can send certain type of commands or instructions for the device.
+	A device may have multiple queue families.
+*/
+QueueFamiliesIndices VulkanApp::findQueueFamilies(VkPhysicalDevice device)
+{
+	QueueFamiliesIndices indices;
+
+	uint32_t queueFamilyCount = 0;
+	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
+
+	std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
+
+	int i = 0;
+	for (const auto& queueFamily : queueFamilies)
+	{
+		//If the index corresponds to a family that supports graphics instructions
+		if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
+		{
+			indices.graphicsFamily = i;
+		}
+
+		//If the device has all the queues we need, return.
+		if (indices.isComplete())
+		{
+			break;
+		}
+
+		i++;
+	}
+
+	return indices;
+}
+
+
 /*
-* 
 *		VALIDATION		
+*	Validation layers are "safety" checkpoints that can help debug and check the
+*	correctness of the application. They are not necessary to run the application,
+*	so they can be disabled in the release build.
 * 
 */
+
 
 bool VulkanApp::checkValidationLayerSupport()
 {
