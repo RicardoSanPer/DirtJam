@@ -8,7 +8,8 @@
 #include <stdexcept>
 #include <cstdlib>
 #include <vector>
-#include<optional>
+#include <set>
+#include <optional>
 
 extern const uint32_t WINDOW_WIDTH;
 extern const uint32_t WINDOW_HEIGHT;
@@ -27,20 +28,21 @@ const std::vector<const char*> validationLayers =
 /**
 	Struct that holds the index to the device's queue families
 */
-struct QueueFamiliesIndices
+struct QueueFamilyIndices
 {
 	/*
 	*	Each device has a list of supported queues. Family Indices
 	*	saves the index if the list corresponding to each queue.
 	*/ 
-	std::optional<uint32_t> graphicsFamily;
+	std::optional<uint32_t> graphicsFamily;	//Availavility of graphics queue
+	std::optional<uint32_t> presentFamily;	//Availability of presentation family (can draw to a screen/window)
 
 	/*
 	It is considered complete if it has all the family queues needed.
 	*/ 
 	bool isComplete()
 	{
-		return graphicsFamily.has_value();
+		return graphicsFamily.has_value() && presentFamily.has_value();
 	}
 };
 
@@ -61,6 +63,9 @@ private:
 	VkDevice device;
 	VkQueue graphicsQueue;
 
+	VkSurfaceKHR surface;
+	VkQueue presentQueue;
+
 	void initWindow();
 	
 	void initVulkan();
@@ -72,10 +77,11 @@ private:
 
 	void pickPhysicalDevice();
 	bool isDeviceSuitable(VkPhysicalDevice device);
-
 	void createLogicalDevice();
 
-	QueueFamiliesIndices findQueueFamilies(VkPhysicalDevice device);
+	void createSurface();
+
+	QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
 
 	bool checkValidationLayerSupport();
 	std::vector<const char*> getRequiredExtensions();

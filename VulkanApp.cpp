@@ -23,6 +23,7 @@ void VulkanApp::initVulkan()
 {
 	createInstance();
 	setupDebugMessenger();
+	createSurface();
 	pickPhysicalDevice();
 	createLogicalDevice();
 }
@@ -101,7 +102,7 @@ void VulkanApp::cleanup()
 	{
 		DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
 	}
-
+	vkDestroySurfaceKHR(instance, surface, nullptr);
 	vkDestroyDevice(device, nullptr);
 	vkDestroyInstance(instance, nullptr);
 	SDL_DestroyWindow(window);
@@ -129,7 +130,7 @@ std::vector<const char*> VulkanApp::getRequiredExtensions()
 	{
 		extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 	}
-	
+
 	return extensions;
 }
 
@@ -170,24 +171,33 @@ void VulkanApp::pickPhysicalDevice()
 */
 void VulkanApp::createLogicalDevice()
 {
-	QueueFamiliesIndices indices = findQueueFamilies(physicalDevice);
+	QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
 
 	//Info to create a queue(s) in the logical device
-	VkDeviceQueueCreateInfo queueCreateInfo{};
-	queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-	queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
-	queueCreateInfo.queueCount = 1;
+	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+	std::set<uint32_t> uniqueQueueFamilies = { indices.graphicsFamily.value(), indices.presentFamily.value() };
 
 	float queuePriority = 1.0f;
-	queueCreateInfo.pQueuePriorities = &queuePriority;
+	for(uint32_t queueFamily : uniqueQueueFamilies)
+	{
+		VkDeviceQueueCreateInfo queueCreateInfo{};
+
+		queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+		queueCreateInfo.queueFamilyIndex = queueFamily;
+		queueCreateInfo.queueCount = 1;
+		queueCreateInfo.pQueuePriorities = &queuePriority;
+
+		queueCreateInfos.push_back(queueCreateInfo);
+	}
 
 	VkPhysicalDeviceFeatures deviceFeatures{};
 
 	//Info to create the device
 	VkDeviceCreateInfo createInfo{};
+
 	createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-	createInfo.pQueueCreateInfos = &queueCreateInfo;
-	createInfo.queueCreateInfoCount = 1;
+	createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
+	createInfo.pQueueCreateInfos = queueCreateInfos.data();
 	createInfo.pEnabledFeatures = &deviceFeatures;
 	createInfo.enabledExtensionCount = 0;
 	
@@ -206,6 +216,7 @@ void VulkanApp::createLogicalDevice()
 		throw std::runtime_error("Failed to create logical device");
 	}
 	vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
+	vkGetDeviceQueue(device, indices.presentFamily.value(), 0, &presentQueue);
 }
 
 /**
@@ -221,7 +232,7 @@ bool VulkanApp::isDeviceSuitable(VkPhysicalDevice device)
 	/*VkPhysicalDeviceFeatures deviceFeatures;
 	vkGetPhysicalDeviceFeatures(device, &deviceFeatures);*/
 
-	QueueFamiliesIndices indices = findQueueFamilies(device);
+	QueueFamilyIndices indices = findQueueFamilies(device);
 
 	return indices.isComplete();
 }
@@ -231,9 +242,9 @@ bool VulkanApp::isDeviceSuitable(VkPhysicalDevice device)
 	A queue is basically a queue to which we can send certain type of commands or instructions for the device.
 	A device may have multiple queue families.
 */
-QueueFamiliesIndices VulkanApp::findQueueFamilies(VkPhysicalDevice device)
+QueueFamilyIndices VulkanApp::findQueueFamilies(VkPhysicalDevice device)
 {
-	QueueFamiliesIndices indices;
+	QueueFamilyIndices indices;
 
 	uint32_t queueFamilyCount = 0;
 	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
@@ -250,6 +261,15 @@ QueueFamiliesIndices VulkanApp::findQueueFamilies(VkPhysicalDevice device)
 			indices.graphicsFamily = i;
 		}
 
+		//Check that the device also supports surface presentation
+		VkBool32 presentSupport = false;
+		vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport);
+
+		if (presentSupport)
+		{
+			indices.presentFamily = i;
+		}
+
 		//If the device has all the queues we need, return.
 		if (indices.isComplete())
 		{
@@ -260,6 +280,17 @@ QueueFamiliesIndices VulkanApp::findQueueFamilies(VkPhysicalDevice device)
 	}
 
 	return indices;
+}
+
+/**
+	Creates the surface for the SDL window. The surface is like an interface so the window system (in this case SDL) can show on screen what vulkan renders.
+*/ 
+void VulkanApp::createSurface()
+{
+	if (!SDL_Vulkan_CreateSurface(window, instance, &surface))
+	{
+		throw std::runtime_error("Failed to create Window Surface");
+	}
 }
 
 
