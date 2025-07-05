@@ -90,6 +90,12 @@ private:
 	VkSurfaceKHR surface;
 	VkQueue presentQueue;
 	VkSwapchainKHR swapChain;
+	VkFormat swapChainImageFormat;
+	VkExtent2D swapChainExtent;
+
+	std::vector<VkImage> swapChainImages;
+
+	std::vector<VkImageView> swapChainImageViews;
 
 	void initWindow();
 	
@@ -111,6 +117,8 @@ private:
 	VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
 	VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
 	VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
+
+	void createImageViews();
 
 	QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
 

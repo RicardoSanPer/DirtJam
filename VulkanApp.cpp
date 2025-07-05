@@ -27,6 +27,7 @@ void VulkanApp::initVulkan()
 	pickPhysicalDevice();
 	createLogicalDevice();
 	createSwapChain();
+	createImageViews();
 }
 
 /**
@@ -102,6 +103,11 @@ void VulkanApp::cleanup()
 	if (enableValidationLayers)
 	{
 		DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
+	}
+
+	for (auto imageView : swapChainImageViews)
+	{
+		vkDestroyImageView(device, imageView, nullptr);
 	}
 
 	vkDestroySwapchainKHR(device, swapChain, nullptr);
@@ -399,6 +405,13 @@ void VulkanApp::createSwapChain()
 	{
 		throw std::runtime_error("Failed to create swap chain");
 	}
+
+	vkGetSwapchainImagesKHR(device, swapChain, &imageCount, nullptr);
+	swapChainImages.resize(imageCount);
+	vkGetSwapchainImagesKHR(device, swapChain, &imageCount, swapChainImages.data());
+
+	swapChainImageFormat = surfaceFormat.format;
+	swapChainExtent = extent;
 }
 
 /*
@@ -492,6 +505,49 @@ VkExtent2D VulkanApp::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilit
 		return actualExtent;
 	}
 }
+
+/*
+*		IMAGE VIEWS
+*	Image views are basically interfaces to the memory content of the images. They indicate how to interpret the data
+*	(ie as a depth texture with no mipmap).
+* 
+* 
+*/
+
+
+void VulkanApp::createImageViews()
+{
+	swapChainImageViews.resize(swapChainImages.size());
+
+	for (size_t i = 0; i < swapChainImages.size(); i++)
+	{
+		VkImageViewCreateInfo createInfo{};
+		createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		createInfo.image = swapChainImages[i];
+		createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;	//Type of image, like 1D, 2D or 3D
+		createInfo.format = swapChainImageFormat;
+
+		//Allows swizzling of the color chanels
+		createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+		createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+		createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+		createInfo.components.a	 = VK_COMPONENT_SWIZZLE_IDENTITY;
+
+		//Describes what is the purspose of the image and what parts of it should be accessed
+		// ie color target with no mipmap
+		createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		createInfo.subresourceRange.baseMipLevel = 0;		//First mipmap level accesible.
+		createInfo.subresourceRange.levelCount = 1;			//Number of mipmap levels. Only one since we dont need mipmap
+		createInfo.subresourceRange.baseArrayLayer = 0;		//First layer accesible
+		createInfo.subresourceRange.layerCount = 1;			//Multiple layers would be used for stereoscopy. In this case 1 is fine	
+
+		if (vkCreateImageView(device, &createInfo, nullptr, &swapChainImageViews[i]) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to create Image View");
+		}
+	}
+}
+
 
 /*
 *		VALIDATION		
