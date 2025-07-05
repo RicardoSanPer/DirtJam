@@ -106,6 +106,7 @@ void VulkanApp::cleanup()
 	{
 		DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
 	}
+	vkDestroyPipeline(device, graphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
 	vkDestroyRenderPass(device, renderPass, nullptr);
 
@@ -689,7 +690,8 @@ void VulkanApp::createGraphicsPipeline()
 	colorBlending.blendConstants[2] = 0.0f;
 	colorBlending.blendConstants[3] = 0.0f;
 
-	//Pipeline
+	//Pipeline layout
+	//Basically describes how shaders access resources
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutInfo.setLayoutCount = 0;
@@ -702,17 +704,47 @@ void VulkanApp::createGraphicsPipeline()
 		throw std::runtime_error("Failed to create pipeline");	
 	}
 
+	VkGraphicsPipelineCreateInfo pipelineInfo{};
+	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+	pipelineInfo.stageCount = 2; //Basically number of shaders, both vert and frag
+	pipelineInfo.pStages = shaderStages;
+
+	pipelineInfo.pVertexInputState = &vertexInputInfo;
+	pipelineInfo.pInputAssemblyState = &inputAssembly;
+	pipelineInfo.pViewportState = &viewportState;
+	pipelineInfo.pRasterizationState = &rasterizer;
+	pipelineInfo.pMultisampleState = &multisampling;
+	pipelineInfo.pDepthStencilState = nullptr;
+	pipelineInfo.pColorBlendState = &colorBlending;
+	pipelineInfo.pDynamicState = &dynamicState;
+
+	pipelineInfo.layout = pipelineLayout;
+	pipelineInfo.renderPass = renderPass;
+	pipelineInfo.subpass = 0; //Index of subpass to use
+
+	//These are used to derive the pipeline from an already existing one in order to reuse
+	//common features
+	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
+	pipelineInfo.basePipelineIndex = -1;
+
+	//This function can create multiple pipelines at a time
+	//Pipeline cache caches to store and reuse pipeline data across pipelines and executions
+	if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create graphics pipeline");
+	}
+
 	//Shader modules can be destroyed once the pipeline has been created
 	vkDestroyShaderModule(device, fragShaderModule, nullptr);
 	vkDestroyShaderModule(device, vertShaderModule, nullptr);
 }
 
 /*
-	Specifies some attachments of the frame buffer such as image format, number of samples, etc.
+	Creates render passes and the attachments (resources) they use
 */
 void VulkanApp::createRenderPass()
 {
-	//Attachments are the resources. This object describes the attachment
+	//Attachments are the resources used in the render pass. This object describes the attachment.
 	//In this case, this attachmen is a color buffer (image from the swap chain)
 	//It is cleared at the beginning and stored upon completion
 	VkAttachmentDescription colorAttachment{};
