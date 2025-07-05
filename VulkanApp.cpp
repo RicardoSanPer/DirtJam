@@ -28,6 +28,7 @@ void VulkanApp::initVulkan()
 	createLogicalDevice();
 	createSwapChain();
 	createImageViews();
+	createRenderPass();
 	createGraphicsPipeline();
 }
 
@@ -106,6 +107,7 @@ void VulkanApp::cleanup()
 		DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
 	}
 	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+	vkDestroyRenderPass(device, renderPass, nullptr);
 
 	for (auto imageView : swapChainImageViews)
 	{
@@ -704,6 +706,63 @@ void VulkanApp::createGraphicsPipeline()
 	vkDestroyShaderModule(device, fragShaderModule, nullptr);
 	vkDestroyShaderModule(device, vertShaderModule, nullptr);
 }
+
+/*
+	Specifies some attachments of the frame buffer such as image format, number of samples, etc.
+*/
+void VulkanApp::createRenderPass()
+{
+	//Attachments are the resources. This object describes the attachment
+	//In this case, this attachmen is a color buffer (image from the swap chain)
+	//It is cleared at the beginning and stored upon completion
+	VkAttachmentDescription colorAttachment{};
+	colorAttachment.format = swapChainImageFormat;
+	colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;	
+	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; //Clear values to a constant at the start
+	colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE; //Store in memory for reading
+
+	//We dont care for stencils as we are not using them
+	colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+
+	//The layout basically is like an operation that makes the attachment presentable for subsequent operations
+	colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;	//We dont care for the previous layout
+	colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; //Image to be presented to the swap chain
+
+	//This indicates to the pipeline what index this attachment in particular is
+	//and what type of layout it is (how it should be interpreted)
+	//This one in particular indicates the swapchain image is the attachment at index 0 and it is a layout
+	//of image "type"
+	VkAttachmentReference colorAttachmentReference{};
+	colorAttachmentReference.attachment = 0;	//sicne it is a single attachment so the index is 0
+	colorAttachmentReference.layout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
+
+	//Subpass info
+	VkSubpassDescription subpass{};
+	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+	subpass.colorAttachmentCount = 1;	//This references the layout(location = 0)out vec4 outcolor from the fragment shader
+										//Basicaly indicates the number of color outputs
+										//Multiple attachments would be useful for debugging and for passes that need extra info
+										//(like some post processing effects)
+	subpass.pColorAttachments = &colorAttachmentReference;
+
+	//render pass
+	VkRenderPassCreateInfo renderPassInfo{};
+	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+	//We attacch all the attachments the pass will need and all the subpasses
+	renderPassInfo.attachmentCount = 1;
+	renderPassInfo.pAttachments = &colorAttachment;
+	renderPassInfo.subpassCount = 1;
+	renderPassInfo.pSubpasses = &subpass;
+
+	if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create render pass");
+	}
+
+}
+
+
 
 VkShaderModule VulkanApp::createShaderModule(const std::vector<char>& code)
 {

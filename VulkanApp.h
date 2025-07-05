@@ -98,6 +98,7 @@ private:
 	std::vector<VkImage> swapChainImages;
 	std::vector<VkImageView> swapChainImageViews;
 
+	VkRenderPass renderPass;
 	VkPipelineLayout pipelineLayout;
 
 	void initWindow();
@@ -127,6 +128,7 @@ private:
 	void createGraphicsPipeline();
 	VkShaderModule createShaderModule(const std::vector<char>& code);
 
+	void createRenderPass();
 
 	bool checkValidationLayerSupport();
 	std::vector<const char*> getRequiredExtensions();
