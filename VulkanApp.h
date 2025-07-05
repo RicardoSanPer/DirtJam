@@ -102,6 +102,10 @@ private:
 	VkPipelineLayout pipelineLayout;
 	VkPipeline graphicsPipeline;
 
+	std::vector<VkFramebuffer> swapChainFrameBuffers;
+	VkCommandPool commandPool;
+	VkCommandBuffer commandBuffer;
+
 	void initWindow();
 	
 	void initVulkan();
@@ -130,6 +134,11 @@ private:
 	VkShaderModule createShaderModule(const std::vector<char>& code);
 
 	void createRenderPass();
+
+	void createFrameBuffers();
+	void createCommandPool();
+	void createCommandBuffer();
+	void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
 
 	bool checkValidationLayerSupport();
 	std::vector<const char*> getRequiredExtensions();

@@ -30,6 +30,57 @@ void VulkanApp::initVulkan()
 	createImageViews();
 	createRenderPass();
 	createGraphicsPipeline();
+	createFrameBuffers();
+	createCommandPool();
+	createCommandBuffer();
+}
+
+void VulkanApp::mainLoop()
+{
+	isRunning = true;
+	SDL_Event windowEvent;
+
+	while (isRunning)
+	{
+		while (SDL_PollEvent(&windowEvent))
+		{
+			if (windowEvent.type == SDL_QUIT)
+			{
+				isRunning = false;
+				break;
+			}
+		}
+	}
+}
+
+void VulkanApp::cleanup()
+{
+	if (enableValidationLayers)
+	{
+		DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
+	}
+
+	for (auto frameBuffer : swapChainFrameBuffers)
+	{
+		vkDestroyFramebuffer(device, frameBuffer, nullptr);
+	}
+
+	vkDestroyCommandPool(device, commandPool, nullptr);
+	vkDestroyPipeline(device, graphicsPipeline, nullptr);
+	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+	vkDestroyRenderPass(device, renderPass, nullptr);
+
+	for (auto imageView : swapChainImageViews)
+	{
+		vkDestroyImageView(device, imageView, nullptr);
+	}
+
+	vkDestroySwapchainKHR(device, swapChain, nullptr);
+	vkDestroySurfaceKHR(instance, surface, nullptr);
+	vkDestroyDevice(device, nullptr);
+	vkDestroyInstance(instance, nullptr);
+	SDL_DestroyWindow(window);
+	SDL_Quit();
 }
 
 /**
@@ -79,48 +130,6 @@ void VulkanApp::createInstance()
 	{
 		throw std::runtime_error("Failed to create instance");
 	}
-}
-
-void VulkanApp::mainLoop()
-{
-	isRunning = true;
-	SDL_Event windowEvent;
-
-	while (isRunning)
-	{
-		while (SDL_PollEvent(&windowEvent))
-		{
-			if (windowEvent.type == SDL_QUIT)
-			{
-				isRunning = false;
-				break;
-			}
-		}
-	}
-}
-
-
-void VulkanApp::cleanup()
-{
-	if (enableValidationLayers)
-	{
-		DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
-	}
-	vkDestroyPipeline(device, graphicsPipeline, nullptr);
-	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-	vkDestroyRenderPass(device, renderPass, nullptr);
-
-	for (auto imageView : swapChainImageViews)
-	{
-		vkDestroyImageView(device, imageView, nullptr);
-	}
-
-	vkDestroySwapchainKHR(device, swapChain, nullptr);
-	vkDestroySurfaceKHR(instance, surface, nullptr);
-	vkDestroyDevice(device, nullptr);
-	vkDestroyInstance(instance, nullptr);
-	SDL_DestroyWindow(window);
-	SDL_Quit();
 }
 
 /*
@@ -617,26 +626,12 @@ void VulkanApp::createGraphicsPipeline()
 	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 	inputAssembly.primitiveRestartEnable = VK_FALSE;
 
-	//Viewport
-	VkViewport viewport{};
-	viewport.x = 0.0f;
-	viewport.y = 0.0f;
-	viewport.width = (float)swapChainExtent.width;
-	viewport.height = (float)swapChainExtent.height;
-	viewport.minDepth = 0.0f;
-	viewport.maxDepth = 1.0f;
-
-	//Scissor rectangles basically acts as a clipping boundary for the drawing operations.
-	VkRect2D scissor{};
-	scissor.offset = { 0,0 };
-	scissor.extent = swapChainExtent;
 
 	VkPipelineViewportStateCreateInfo viewportState{};
 	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+	//We can omit the actual viewport/scissor object as we can load it later at the draw stage
 	viewportState.viewportCount = 1;
-	viewportState.pViewports = &viewport;
 	viewportState.scissorCount = 1;
-	viewportState.pScissors = &scissor;
 
 	//Rasterization
 	VkPipelineRasterizationStateCreateInfo rasterizer{};
@@ -794,7 +789,38 @@ void VulkanApp::createRenderPass()
 
 }
 
+/*
+* 
+*		DRAWING
+* 
+*/
 
+/*
+	Create a framebuffer for each swapchain image 
+*/
+void VulkanApp::createFrameBuffers()
+{
+	swapChainFrameBuffers.resize(swapChainImageViews.size());
+
+	//create a frame buffer for each swapchain image
+	for (size_t i = 0; i < swapChainImageViews.size(); i++)
+	{
+		VkImageView attachments[] = {swapChainImageViews[i]};
+		VkFramebufferCreateInfo framebufferInfo{};
+		framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		framebufferInfo.renderPass = renderPass;	//First specify with which render pass it must be compatible
+		framebufferInfo.attachmentCount = 1;
+		framebufferInfo.pAttachments = attachments;	//ImageViews that should be attached to the respective attachment descriptions
+		framebufferInfo.width = swapChainExtent.width;
+		framebufferInfo.height = swapChainExtent.height;
+		framebufferInfo.layers = 1;
+
+		if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &swapChainFrameBuffers[i]) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to create framebuffer");
+		}
+	}
+}
 
 VkShaderModule VulkanApp::createShaderModule(const std::vector<char>& code)
 {
@@ -810,6 +836,112 @@ VkShaderModule VulkanApp::createShaderModule(const std::vector<char>& code)
 	}
 
 	return shaderModule;
+}
+
+/*
+*		DRAWING
+* 
+* 
+* /
+
+/*
+	A command pool is a buffer that vulkan uses to batch commands together for efficiency.
+*/
+void VulkanApp::createCommandPool()
+{
+	QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice);
+
+	VkCommandPoolCreateInfo poolInfo{};
+	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+	poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value(); //Commands are submitted to one queue
+
+	if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS)
+	{
+		throw new std::runtime_error("Failed to create command pool");
+	}
+}
+
+/*
+	Creates the command bufffer. The difference with the command pool is that the pool manages the resources of the
+	commands while the buffer is where the commands are recorded
+*/
+void VulkanApp::createCommandBuffer()
+{
+	VkCommandBufferAllocateInfo allocInfo{};
+	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	allocInfo.commandPool = commandPool;
+	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	//Primary means it can be submitted to the queue but cannot be called by other command buffers.
+	//Secondary cannot be submitted directly but can be called from primary commands
+	allocInfo.commandBufferCount = 1;
+
+	if (vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to allocate command buffer");
+	}
+}
+/*
+	This is where the commands are actually recorded into the buffer
+*/
+void VulkanApp::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
+{
+	VkCommandBufferBeginInfo beginInfo{};
+	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	beginInfo.flags = 0;	//Specifies how to use the command buffer
+	beginInfo.pInheritanceInfo = nullptr; //relevant to secondary commands. specifies the state to inherit from primary commands
+
+	if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to begin recording command buffer");
+	}
+
+	VkRenderPassBeginInfo renderPassInfo{};
+	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	renderPassInfo.renderPass = renderPass;
+	renderPassInfo.framebuffer = swapChainFrameBuffers[imageIndex];
+	renderPassInfo.renderArea.offset = { 0,0 };
+	renderPassInfo.renderArea.extent = swapChainExtent;
+
+	VkClearValue clearColor = { {{0.0f, 0.0f, 0.0f, 1.0f}} };
+	renderPassInfo.clearValueCount = 1;
+	renderPassInfo.pClearValues = &clearColor;
+
+	//Commands all begin with vkCmd. All of them take as first parameter the command buffer to which record
+	//Begin render pass
+	vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+
+
+	//Viewport
+	VkViewport viewport{};
+	viewport.x = 0.0f;
+	viewport.y = 0.0f;
+	viewport.width = static_cast<float>(swapChainExtent.width);
+	viewport.height = static_cast<float>(swapChainExtent.height);
+	viewport.minDepth = 0.0f;
+	viewport.maxDepth = 1.0f;
+	vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+
+	//Scissor rectangles basically acts as a clipping boundary for the drawing operations.
+	VkRect2D scissor{};
+	scissor.offset = { 0,0 };
+	scissor.extent = swapChainExtent;
+	vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+	//Draw command
+	//params
+	//command buffer, vertexcount, instancecount, firstvertex, firstinstace
+	vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+
+	//FinishRenderPass
+	vkCmdEndRenderPass(commandBuffer);
+
+	if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to end command buffer");
+	}
 }
 
 /*
