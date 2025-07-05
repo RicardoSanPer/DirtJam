@@ -28,6 +28,7 @@ void VulkanApp::initVulkan()
 	createLogicalDevice();
 	createSwapChain();
 	createImageViews();
+	createGraphicsPipeline();
 }
 
 /**
@@ -104,6 +105,7 @@ void VulkanApp::cleanup()
 	{
 		DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
 	}
+	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
 
 	for (auto imageView : swapChainImageViews)
 	{
@@ -548,6 +550,176 @@ void VulkanApp::createImageViews()
 	}
 }
 
+/*
+*				PIPELINE
+*	Vulkan allows enabling and disabling certain parts of the graphics pipeline.
+*	However it must be recreated anytime some aspect changes (ie render something with a different shader,
+*	changing the configuration of a fixed function).
+* 
+*/
+
+void VulkanApp::createGraphicsPipeline()
+{
+	/*
+	*		SHADER STAGE
+	*/
+	auto vertShaderCode = readFile("Shaders/Vert/SimpleVertShader.spv");
+	auto fragShaderCode = readFile("Shaders/Frag/SimpleFragShader.spv");
+
+	VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
+	VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
+
+	VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
+	vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+	vertShaderStageInfo.module = vertShaderModule;
+	vertShaderStageInfo.pName = "main"; //function to invoke (entry point)
+
+	VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
+	fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+	fragShaderStageInfo.module = fragShaderModule;
+	fragShaderStageInfo.pName = "main"; //function to invoke (entry point)
+	VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo };
+
+	//Some stages of the pipeline are not baked, hence some aspects can be changed without
+	//having to recreate the pipeline. For example, the viewport size.
+	//Basically, these values are ignored but must be supplied to the pipeline at draw time
+
+	std::vector<VkDynamicState> dynamicStates = {
+		VK_DYNAMIC_STATE_VIEWPORT,
+		VK_DYNAMIC_STATE_SCISSOR
+	};
+
+	VkPipelineDynamicStateCreateInfo dynamicState{};
+	dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+	dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
+	dynamicState.pDynamicStates = dynamicStates.data();
+
+	//Vertex input. Describes format of the vertex data:
+	//Bindings: spacing between data, whether data is per vertex or per instance
+	//Attributes: type of attributes passed, which binding to load from, offset
+	VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	vertexInputInfo.vertexBindingDescriptionCount = 0;
+	vertexInputInfo.pVertexBindingDescriptions = nullptr;
+	vertexInputInfo.vertexAttributeDescriptionCount = 0;
+	vertexInputInfo.pVertexAttributeDescriptions = nullptr;
+
+	//Input assembly
+	//Describes the type of primitives to draw and whether the primitives should restart
+	//(in the case of triangle/line strip, it breaks the continuity)
+	VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+	inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	inputAssembly.primitiveRestartEnable = VK_FALSE;
+
+	//Viewport
+	VkViewport viewport{};
+	viewport.x = 0.0f;
+	viewport.y = 0.0f;
+	viewport.width = (float)swapChainExtent.width;
+	viewport.height = (float)swapChainExtent.height;
+	viewport.minDepth = 0.0f;
+	viewport.maxDepth = 1.0f;
+
+	//Scissor rectangles basically acts as a clipping boundary for the drawing operations.
+	VkRect2D scissor{};
+	scissor.offset = { 0,0 };
+	scissor.extent = swapChainExtent;
+
+	VkPipelineViewportStateCreateInfo viewportState{};
+	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+	viewportState.viewportCount = 1;
+	viewportState.pViewports = &viewport;
+	viewportState.scissorCount = 1;
+	viewportState.pScissors = &scissor;
+
+	//Rasterization
+	VkPipelineRasterizationStateCreateInfo rasterizer{};
+	rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+	rasterizer.depthClampEnable = VK_FALSE;
+	rasterizer.rasterizerDiscardEnable = VK_FALSE;
+	rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+	rasterizer.lineWidth = 1.0f;
+	rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+	rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+	rasterizer.depthBiasEnable = VK_FALSE;		//depth bias is used for cases such as shadow mapping
+	rasterizer.depthBiasConstantFactor = 0.0f;
+	rasterizer.depthBiasClamp = 0.0f;
+	rasterizer.depthBiasSlopeFactor = 0.0f;
+
+	//Multisampling
+	VkPipelineMultisampleStateCreateInfo multisampling{};
+	multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	multisampling.sampleShadingEnable = VK_FALSE;
+	multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+	multisampling.minSampleShading = 1.0f;
+	multisampling.pSampleMask = nullptr;
+	multisampling.alphaToCoverageEnable = VK_FALSE;
+	multisampling.alphaToOneEnable = VK_FALSE;
+
+	//Color blending. When a fragment returns a color to the frame buffer, it has to mix with the color already
+	//present in that pixel
+	//Thsi structure is per frame buffer, so applies only to the frame buffer that will be attached
+	VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+	colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+	colorBlendAttachment.blendEnable = VK_FALSE; //When false, the new pixel is drawn. When true, new is blended with old.
+	//This configuration is for color blending. That is, when drawing a pixel on a pixel already drawn.
+	//This configuration is for color blending with transparency
+	//These are all optional if blending is disabled
+	colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+	colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+	colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+	colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+	colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+
+	VkPipelineColorBlendStateCreateInfo colorBlending{};
+	colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	colorBlending.logicOpEnable = VK_FALSE;
+	colorBlending.logicOp = VK_LOGIC_OP_COPY;	//optional since logic is disabled
+	colorBlending.attachmentCount = 1;
+	colorBlending.pAttachments = &colorBlendAttachment;
+	//Optional values. This sets blend constants for all the attachments above
+	colorBlending.blendConstants[0] = 0.0f;
+	colorBlending.blendConstants[1] = 0.0f;
+	colorBlending.blendConstants[2] = 0.0f;
+	colorBlending.blendConstants[3] = 0.0f;
+
+	//Pipeline
+	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	pipelineLayoutInfo.setLayoutCount = 0;
+	pipelineLayoutInfo.pSetLayouts = nullptr;
+	pipelineLayoutInfo.pushConstantRangeCount = 0;
+	pipelineLayoutInfo.pPushConstantRanges = nullptr;
+
+	if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create pipeline");	
+	}
+
+	//Shader modules can be destroyed once the pipeline has been created
+	vkDestroyShaderModule(device, fragShaderModule, nullptr);
+	vkDestroyShaderModule(device, vertShaderModule, nullptr);
+}
+
+VkShaderModule VulkanApp::createShaderModule(const std::vector<char>& code)
+{
+	VkShaderModuleCreateInfo createInfo{};
+	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	createInfo.codeSize = code.size();
+	createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
+
+	VkShaderModule shaderModule;
+	if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create shader module");
+	}
+
+	return shaderModule;
+}
 
 /*
 *		VALIDATION		
@@ -656,4 +828,27 @@ void VulkanApp::DestroyDebugUtilsMessengerEXT(
 	{
 		func(instance, debugMessenger, pAllocator);
 	}
+}
+
+std::vector<char> VulkanApp::readFile(const std::string& fileName)
+{
+	//ate means start reading from the end
+	std::ifstream file(fileName, std::ios::ate | std::ios::binary);
+
+	if (!file.is_open())
+	{
+		throw std::runtime_error("Failed to open file: " + fileName);
+	}
+
+	//by reading from the end the size of the file can be easily obtained
+	size_t fileSize = (size_t)file.tellg();
+
+	std::vector<char> buffer(fileSize);
+
+	//go to the start of the file and read normally
+	file.seekg(0);
+	file.read(buffer.data(), fileSize);
+
+	file.close();
+	return buffer;
 }

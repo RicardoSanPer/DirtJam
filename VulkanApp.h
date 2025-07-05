@@ -13,6 +13,8 @@
 #include <limits>
 #include <algorithm>
 
+#include <fstream>
+
 extern const uint32_t WINDOW_WIDTH;
 extern const uint32_t WINDOW_HEIGHT;
 
@@ -94,13 +96,13 @@ private:
 	VkExtent2D swapChainExtent;
 
 	std::vector<VkImage> swapChainImages;
-
 	std::vector<VkImageView> swapChainImageViews;
+
+	VkPipelineLayout pipelineLayout;
 
 	void initWindow();
 	
 	void initVulkan();
-
 	void createInstance();
 
 	void mainLoop();
@@ -121,6 +123,10 @@ private:
 	void createImageViews();
 
 	QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
+
+	void createGraphicsPipeline();
+	VkShaderModule createShaderModule(const std::vector<char>& code);
+
 
 	bool checkValidationLayerSupport();
 	std::vector<const char*> getRequiredExtensions();
@@ -148,6 +154,8 @@ private:
 		VkInstance instance,
 		VkDebugUtilsMessengerEXT debugMessenger,
 		const VkAllocationCallbacks* pAllocator);
+
+	static std::vector<char> readFile(const std::string& fileName);
 
 };
 
