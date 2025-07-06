@@ -15,8 +15,10 @@
 
 #include <fstream>
 
-extern const uint32_t WINDOW_WIDTH;
-extern const uint32_t WINDOW_HEIGHT;
+const uint32_t WINDOW_WIDTH = 800;
+const uint32_t WINDOW_HEIGHT = 600;
+
+const int MAX_FRAMES_IN_FLIGHT = 2;
 
 //Validation layers
 const std::vector<const char*> validationLayers =
@@ -104,7 +106,13 @@ private:
 
 	std::vector<VkFramebuffer> swapChainFrameBuffers;
 	VkCommandPool commandPool;
-	VkCommandBuffer commandBuffer;
+	std::vector<VkCommandBuffer> commandBuffers;
+
+	std::vector<VkSemaphore> imageAvailabelSemaphores;
+	std::vector<VkSemaphore> renderFinishedSemaphores;
+	std::vector<VkFence> inFlightFences;
+
+	uint32_t currentFrame = 0;
 
 	void initWindow();
 	
@@ -121,6 +129,9 @@ private:
 
 	void createSurface();
 	void createSwapChain();
+	void recreateSwapChain();
+	void cleanupSwapChain();
+
 	SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
 	VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
 	VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
@@ -132,13 +143,15 @@ private:
 
 	void createGraphicsPipeline();
 	VkShaderModule createShaderModule(const std::vector<char>& code);
-
 	void createRenderPass();
 
 	void createFrameBuffers();
 	void createCommandPool();
-	void createCommandBuffer();
+	void createCommandBuffers();
 	void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
+
+	void drawFrame();
+	void createSyncObjects();
 
 	bool checkValidationLayerSupport();
 	std::vector<const char*> getRequiredExtensions();

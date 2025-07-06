@@ -1,9 +1,6 @@
 #include "VulkanApp.h"
 #include <SDL2/SDL.h>
 
-const uint32_t WINDOW_WIDTH = 800;
-const uint32_t WINDOW_HEIGHT = 600;
-
 void VulkanApp::run()
 {
 	initWindow();
@@ -32,7 +29,8 @@ void VulkanApp::initVulkan()
 	createGraphicsPipeline();
 	createFrameBuffers();
 	createCommandPool();
-	createCommandBuffer();
+	createCommandBuffers();
+	createSyncObjects();
 }
 
 void VulkanApp::mainLoop()
@@ -49,33 +47,40 @@ void VulkanApp::mainLoop()
 				isRunning = false;
 				break;
 			}
+			drawFrame();
 		}
 	}
+	vkDeviceWaitIdle(device);
 }
 
 void VulkanApp::cleanup()
 {
+	cleanupSwapChain();
+
+	vkDestroyPipeline(device, graphicsPipeline, nullptr);
+	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+	vkDestroyRenderPass(device, renderPass, nullptr);
+
+	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
+		vkDestroySemaphore(device, imageAvailabelSemaphores[i], nullptr);
+		vkDestroyFence(device, inFlightFences[i], nullptr);
+	}
+
+	//Changed to swapchain images to avoid validation errors
+	for (size_t i = 0; i < swapChainImages.size(); i++)
+	{
+		vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
+	}
+
+
+	vkDestroyCommandPool(device, commandPool, nullptr);
+
 	if (enableValidationLayers)
 	{
 		DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
 	}
 
-	for (auto frameBuffer : swapChainFrameBuffers)
-	{
-		vkDestroyFramebuffer(device, frameBuffer, nullptr);
-	}
-
-	vkDestroyCommandPool(device, commandPool, nullptr);
-	vkDestroyPipeline(device, graphicsPipeline, nullptr);
-	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-	vkDestroyRenderPass(device, renderPass, nullptr);
-
-	for (auto imageView : swapChainImageViews)
-	{
-		vkDestroyImageView(device, imageView, nullptr);
-	}
-
-	vkDestroySwapchainKHR(device, swapChain, nullptr);
 	vkDestroySurfaceKHR(instance, surface, nullptr);
 	vkDestroyDevice(device, nullptr);
 	vkDestroyInstance(instance, nullptr);
@@ -428,6 +433,32 @@ void VulkanApp::createSwapChain()
 	swapChainExtent = extent;
 }
 
+void VulkanApp::cleanupSwapChain()
+{
+	for (auto frameBuffer : swapChainFrameBuffers)
+	{
+		vkDestroyFramebuffer(device, frameBuffer, nullptr);
+	}
+
+	for (auto imageView : swapChainImageViews)
+	{
+		vkDestroyImageView(device, imageView, nullptr);
+	}
+
+	vkDestroySwapchainKHR(device, swapChain, nullptr);
+}
+
+void VulkanApp::recreateSwapChain()
+{
+	vkDeviceWaitIdle(device);
+
+	cleanupSwapChain();
+
+	createSwapChain();
+	createImageViews();
+	createFrameBuffers();
+}
+
 /*
 	Queries the physical device for the swap chain details it supports.
 */
@@ -484,7 +515,7 @@ VkPresentModeKHR VulkanApp::chooseSwapPresentMode(const std::vector<VkPresentMod
 	for (const auto& availablePresentMode : availablePresentModes)
 	{
 		//Kinda like triple buffering
-		if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR)
+		if (availablePresentMode == VK_PRESENT_MODE_FIFO_KHR)
 		{
 			return availablePresentMode;
 		}
@@ -762,7 +793,7 @@ void VulkanApp::createRenderPass()
 	//of image "type"
 	VkAttachmentReference colorAttachmentReference{};
 	colorAttachmentReference.attachment = 0;	//sicne it is a single attachment so the index is 0
-	colorAttachmentReference.layout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
+	colorAttachmentReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
 	//Subpass info
 	VkSubpassDescription subpass{};
@@ -866,17 +897,18 @@ void VulkanApp::createCommandPool()
 	Creates the command bufffer. The difference with the command pool is that the pool manages the resources of the
 	commands while the buffer is where the commands are recorded
 */
-void VulkanApp::createCommandBuffer()
+void VulkanApp::createCommandBuffers()
 {
+	commandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
 	VkCommandBufferAllocateInfo allocInfo{};
 	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 	allocInfo.commandPool = commandPool;
 	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	//Primary means it can be submitted to the queue but cannot be called by other command buffers.
 	//Secondary cannot be submitted directly but can be called from primary commands
-	allocInfo.commandBufferCount = 1;
+	allocInfo.commandBufferCount = static_cast<uint32_t>(commandBuffers.size());
 
-	if (vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer) != VK_SUCCESS)
+	if (vkAllocateCommandBuffers(device, &allocInfo, commandBuffers.data()) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to allocate command buffer");
 	}
@@ -888,7 +920,7 @@ void VulkanApp::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imag
 {
 	VkCommandBufferBeginInfo beginInfo{};
 	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	beginInfo.flags = 0;	//Specifies how to use the command buffer
+	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;	//Specifies how to use the command buffer
 	beginInfo.pInheritanceInfo = nullptr; //relevant to secondary commands. specifies the state to inherit from primary commands
 
 	if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
@@ -903,7 +935,7 @@ void VulkanApp::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imag
 	renderPassInfo.renderArea.offset = { 0,0 };
 	renderPassInfo.renderArea.extent = swapChainExtent;
 
-	VkClearValue clearColor = { {{0.0f, 0.0f, 0.0f, 1.0f}} };
+	VkClearValue clearColor = { {{0.0f, 0.0f, 0.0f, 0.0f}} };
 	renderPassInfo.clearValueCount = 1;
 	renderPassInfo.pClearValues = &clearColor;
 
@@ -941,6 +973,162 @@ void VulkanApp::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imag
 	if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to end command buffer");
+	}
+}
+
+/*
+* 
+*		RENDERING AND PRESENTATION
+* 
+*/
+
+void VulkanApp::drawFrame()
+{
+	/*
+	* Receives besides device
+	* Number of fences and array of fences
+	* Wait for any or all fences to be finished. VK_FALSE and VK_TRUE respectively
+	* Timeout
+	*/
+
+	//Fence is created with signal true to avoid deadlock on the first frame
+	//uint64_max effectively removes the timeout
+	vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
+
+	uint32_t imageIndex;
+
+	/** besides device and wapchain, it takes:
+	* timeout
+	* sync object to be signaled
+	* variable to which save the index of image that just became available
+	*/
+	VkResult result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailabelSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+
+	if (result == VK_ERROR_OUT_OF_DATE_KHR)
+	{
+		recreateSwapChain();
+		return;
+	}
+	else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
+	{
+		throw std::runtime_error("Failed to acquire swap chain image");
+	}
+
+	vkResetFences(device, 1, &inFlightFences[currentFrame]);
+
+	//record command buffer
+	vkResetCommandBuffer(commandBuffers[currentFrame], 0);
+	recordCommandBuffer(commandBuffers[currentFrame], imageIndex);
+
+	VkSubmitInfo submitInfo{};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+	VkSemaphore waitSemaphores[] = { imageAvailabelSemaphores[currentFrame] };
+	VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+
+	//Specify on what semaphores to wait
+	submitInfo.waitSemaphoreCount = 1;
+	submitInfo.pWaitSemaphores = waitSemaphores;
+	//Specify on which stage the semaphore should wait
+	submitInfo.pWaitDstStageMask = waitStages;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &commandBuffers[currentFrame];
+
+	//Indicate which semaphores should be signaled once the command buffer has finished executing
+	VkSemaphore signalSemaphores[] = { renderFinishedSemaphores[imageIndex] };
+	submitInfo.signalSemaphoreCount = 1;
+	submitInfo.pSignalSemaphores = signalSemaphores;
+
+	//Submit command buffer to the graphics queue
+	//inflightfence is the fence to which signal once execution has finised
+	if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to submit draw command buffer");
+	}
+
+
+
+	//dependencies
+	//define order and data ordering between subpasses and an external stage
+	//In other word they hande the transitions between passes and external stages
+	//including data interpretation, ordering and syncronization
+	VkSubpassDependency dependency{};
+	dependency.srcSubpass = VK_SUBPASS_EXTERNAL; //Implicit subpass before or after render pass
+	dependency.dstSubpass = 0;
+	dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT; //Operation to wait on
+	dependency.srcAccessMask = 0;
+
+	VkPresentInfoKHR presentInfo{};
+	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+	//Semaphores to wait on before presentation
+	presentInfo.waitSemaphoreCount = 1;
+	presentInfo.pWaitSemaphores = signalSemaphores;
+
+	VkSwapchainKHR swapChains[] = { swapChain };
+	presentInfo.swapchainCount = 1;
+	//Swapchains to which present images and their indexes. Almost always only one
+	presentInfo.pSwapchains = swapChains;
+	presentInfo.pImageIndices = &imageIndex;
+	presentInfo.pResults = nullptr; //Array to which write the vkresult of the swap chains, to check if
+									//presentation was successful
+
+	//Submit request to present image to the swapchain
+	result = vkQueuePresentKHR(presentQueue, &presentInfo);
+
+	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
+	{
+		recreateSwapChain();
+	}
+	else if (result != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to present swap chain image");
+	}
+	
+	currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+	/* Core of draw loop
+	*	Wait for previou frame to finish
+	*	Acquire image from chainswap
+	*	Record command buffer to draw onto the image
+	*	Submit recorded command buffer
+	*	Present swap chain image
+	*/
+}
+
+/*
+	Syncronization objects for chain swapping and presentation. They wait for:
+	- Image ready to be rendered to
+	- render finished
+	- image transmitted back for presentation
+*/
+void VulkanApp::createSyncObjects()
+{
+	imageAvailabelSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+	//Changed to swapchain images to avoid validation errors
+	renderFinishedSemaphores.resize(swapChainImages.size());
+	inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
+
+	VkSemaphoreCreateInfo semaphoreInfo{};
+	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+	VkFenceCreateInfo fenceInfo{};
+	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	//create fence signaled to avoid a deadlock on the first frame
+	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
+		if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailabelSemaphores[i]) != VK_SUCCESS
+			|| vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to create sync objects");
+		}
+	}
+	for (size_t i = 0; i < swapChainImages.size(); i++)
+	{
+		if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to create sync objects");
+		}
 	}
 }
 

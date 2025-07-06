@@ -1,4 +1,0 @@
-Validation Error: [ VUID-VkAttachmentReference-synchronization2-06910 ] | MessageID = 0x7d7f9761
-vkCreateRenderPass(): pCreateInfo->pSubpasses[0].pColorAttachments[0] is VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL (and synchronization2 was not enabled).
-The Vulkan spec states: If the synchronization2 feature is not enabled, layout must not be VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR or VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL_KHR (https://vulkan.lunarg.com/doc/view/1.4.313.2/windows/antora/spec/latest/chapters/renderpass.html#VUID-VkAttachmentReference-synchronization2-06910)
-
