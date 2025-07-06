@@ -114,6 +114,9 @@ private:
 
 	uint32_t currentFrame = 0;
 
+	bool framebufferResized = false;
+	bool isMinimized = false;
+
 	void initWindow();
 	
 	void initVulkan();

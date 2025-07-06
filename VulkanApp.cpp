@@ -12,8 +12,9 @@ void VulkanApp::run()
 void VulkanApp::initWindow()
 {
 	SDL_Init(SDL_INIT_VIDEO);
-
 	window = SDL_CreateWindow(windowName, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 800, 600, SDL_WINDOW_SHOWN | SDL_WINDOW_VULKAN);
+	SDL_SetWindowResizable(window, SDL_TRUE);
+	SDL_SetWindowMinimumSize(window, WINDOW_WIDTH, WINDOW_HEIGHT);
 }
 
 void VulkanApp::initVulkan() 
@@ -40,6 +41,7 @@ void VulkanApp::mainLoop()
 
 	while (isRunning)
 	{
+		
 		while (SDL_PollEvent(&windowEvent))
 		{
 			if (windowEvent.type == SDL_QUIT)
@@ -47,8 +49,13 @@ void VulkanApp::mainLoop()
 				isRunning = false;
 				break;
 			}
-			drawFrame();
 		}
+		isMinimized = SDL_GetWindowFlags(window) & SDL_WINDOW_MINIMIZED;
+		if (isMinimized)
+		{
+			continue;
+		}
+		drawFrame();
 	}
 	vkDeviceWaitIdle(device);
 }
@@ -538,6 +545,7 @@ VkExtent2D VulkanApp::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilit
 	{
 		int width, height;
 		SDL_Vulkan_GetDrawableSize(window, &width, &height);
+		//SDL_GetWindowSize(window, &width, &height);
 
 		VkExtent2D actualExtent = {
 			static_cast<uint32_t>(width),
@@ -1075,8 +1083,9 @@ void VulkanApp::drawFrame()
 	//Submit request to present image to the swapchain
 	result = vkQueuePresentKHR(presentQueue, &presentInfo);
 
-	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
+	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized)
 	{
+		framebufferResized = false;
 		recreateSwapChain();
 	}
 	else if (result != VK_SUCCESS)
