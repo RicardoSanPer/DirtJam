@@ -132,14 +132,16 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="Vertex.cpp" />
     <ClCompile Include="VulkanApp.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Vertex.h" />
     <ClInclude Include="VulkanApp.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="SimpleFragShader.frag" />
-    <None Include="SimpleVertShader.vert" />
+    <None Include="Shaders\Frag\SimpleFragShader.frag" />
+    <None Include="Shaders\Vert\SimpleVertShader.vert" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
