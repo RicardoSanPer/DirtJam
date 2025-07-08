@@ -22,7 +22,7 @@ std::array<VkVertexInputAttributeDescription, 2> Vertex::getAttributeDescription
 {
     std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
     
-    attributeDescriptions[0].binding = 0;  //from which bindind the data comes. Since it comes from the same binding/buffer, it is 0
+    attributeDescriptions[0].binding = 0;  //from which bindind the data comes. Since it comes from the same binding/buffer, it is 0    
     attributeDescriptions[0].location = 0; //Which input of the shader to use
     attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT; //Format of the data. Basically means a vec2 (of floats)
     attributeDescriptions[0].offset = offsetof(Vertex, pos); //Byte offset

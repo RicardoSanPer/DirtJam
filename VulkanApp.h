@@ -63,12 +63,21 @@ struct QueueFamilyIndices
 	}
 };
 
-const std::vector<Vertex> vertices = {
-	{{0.0f, -0.5f}, {1.0f, 1.0f, 1.0f}},
-	{{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-	{{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
-};
+//const std::vector<Vertex> vertices = {
+//	{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+//	{{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+//	{{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+//	{{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}},
+//};
+//
+//const std::vector<uint16_t> indices =
+//{
+//	0, 1, 2, 2, 3, 0
+//};
 
+extern std::vector<Vertex> vertices;
+
+extern std::vector<uint16_t> indices;
 /*
 	Holds details of the details for the swap chain supported such as:
 	Surface Capabilites: number of images in swap, width, height.
@@ -125,6 +134,8 @@ private:
 
 	VkBuffer vertexBuffer;
 	VkDeviceMemory vertexBufferMemory;
+	VkBuffer indexBuffer;
+	VkDeviceMemory indexBufferMemory;
 
 	bool framebufferResized = false;
 	bool isMinimized = false;
@@ -175,6 +186,7 @@ private:
 	void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
 
 	void createVertexBuffer();
+	void createIndexBuffer();
 	uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
 	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
