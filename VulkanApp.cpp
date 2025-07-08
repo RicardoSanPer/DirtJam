@@ -1,10 +1,20 @@
 #include "VulkanApp.h"
 #include <SDL2/SDL.h>
 
+void check_vk_result(VkResult err)
+{
+	if (err != VK_SUCCESS)
+	{
+		throw std::runtime_error("IMGUI error");
+	}
+	return;
+}
+
 void VulkanApp::run()
 {
 	initWindow();
 	initVulkan();
+	setupImgui();
 	mainLoop();
 	cleanup();
 }
@@ -46,6 +56,7 @@ void VulkanApp::mainLoop()
 		
 		while (SDL_PollEvent(&windowEvent))
 		{
+			ImGui_ImplSDL2_ProcessEvent(&windowEvent);
 			if (windowEvent.type == SDL_QUIT)
 			{
 				isRunning = false;
@@ -57,13 +68,24 @@ void VulkanApp::mainLoop()
 		{
 			continue;
 		}
+
+		ImGui_ImplVulkan_NewFrame();
+		ImGui_ImplSDL2_NewFrame();
+		ImGui::NewFrame();
+		ImGui::ShowDemoWindow();
+
 		drawFrame();
+
 	}
 	vkDeviceWaitIdle(device);
 }
 
 void VulkanApp::cleanup()
 {
+	ImGui_ImplVulkan_Shutdown();
+	ImGui_ImplSDL2_Shutdown();
+	ImGui::DestroyContext();
+
 	cleanupSwapChain();
 
 	//Destroy vertex buffer
@@ -93,6 +115,9 @@ void VulkanApp::cleanup()
 
 	vkDestroyCommandPool(device, commandPool, nullptr);
 
+	//IMGUI
+	vkDestroyDescriptorPool(device, imguiDescriptorPool, nullptr);
+
 	if (enableValidationLayers)
 	{
 		DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
@@ -103,6 +128,7 @@ void VulkanApp::cleanup()
 	vkDestroyInstance(instance, nullptr);
 	SDL_DestroyWindow(window);
 	SDL_Quit();
+
 }
 
 /**
@@ -693,7 +719,7 @@ void VulkanApp::createGraphicsPipeline()
 	rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 	rasterizer.depthClampEnable = VK_FALSE;
 	rasterizer.rasterizerDiscardEnable = VK_FALSE;
-	rasterizer.polygonMode = VK_POLYGON_MODE_LINE;
+	rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
 	rasterizer.lineWidth = 1.0f;
 	rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
 	rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
@@ -1002,6 +1028,11 @@ void VulkanApp::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imag
 	//vkCmdDraw(commandBuffer, static_cast<uint32_t>(vertices.size()), 1, 0, 0);
 	vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 
+	//IMGUI
+	//Should be called during the render pass
+	ImGui::Render();
+	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffers[currentFrame]);
+
 	//FinishRenderPass
 	vkCmdEndRenderPass(commandBuffer);
 
@@ -1053,6 +1084,7 @@ void VulkanApp::drawFrame()
 
 	//record command buffer
 	vkResetCommandBuffer(commandBuffers[currentFrame], 0);
+
 	recordCommandBuffer(commandBuffers[currentFrame], imageIndex);
 
 	VkSubmitInfo submitInfo{};
@@ -1320,6 +1352,72 @@ void VulkanApp::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemo
 
 }
 
+/*
+* 
+*	IMGUI
+* 
+*/ 
+
+void VulkanApp::setupImgui()
+{
+	// Setup Dear ImGui context
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO();
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+
+	createImguiDescriptorPool();
+
+	//// Setup Platform/Renderer backends
+	//
+	ImGui_ImplSDL2_InitForVulkan(window);
+	ImGui_ImplVulkan_InitInfo init_info = {};
+	init_info.Instance = instance;
+	init_info.PhysicalDevice = physicalDevice;
+	init_info.Device = device;
+	init_info.QueueFamily = findQueueFamilies(physicalDevice).graphicsFamily.value();
+	init_info.Queue = graphicsQueue;
+	init_info.PipelineCache = VK_NULL_HANDLE;
+	init_info.DescriptorPool = imguiDescriptorPool;
+	init_info.RenderPass = renderPass;
+	init_info.Subpass = 0;
+	init_info.MinImageCount = 2;
+	init_info.ImageCount = 2;
+	init_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+	init_info.Allocator = VK_NULL_HANDLE;
+	init_info.CheckVkResultFn = check_vk_result;
+	ImGui_ImplVulkan_Init(&init_info);
+
+	// (this gets a bit more complicated, see example app for full reference)
+	//ImGui_ImplVulkan_CreateFontsTexture(YOUR_COMMAND_BUFFER);
+	// (your code submit a queue)
+	//ImGui_ImplVulkan_DestroyFontUploadObjects();
+}
+/*
+	Create descriptor pool for imgui
+*/
+void VulkanApp::createImguiDescriptorPool()
+{
+	VkDescriptorPoolSize pool_sizes[] =
+	{
+		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, IMGUI_IMPL_VULKAN_MINIMUM_IMAGE_SAMPLER_POOL_SIZE },
+	};
+	VkDescriptorPoolCreateInfo pool_info = {};
+	pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+	pool_info.maxSets = 0;
+
+	for (VkDescriptorPoolSize& pool_size : pool_sizes)
+		pool_info.maxSets += pool_size.descriptorCount;
+
+	pool_info.poolSizeCount = (uint32_t)IM_ARRAYSIZE(pool_sizes);
+	pool_info.pPoolSizes = pool_sizes;
+
+	if (vkCreateDescriptorPool(device, &pool_info, nullptr, &imguiDescriptorPool) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create pool descriptor for imgui");
+	}
+}
 /*
 *		VALIDATION		
 *	Validation layers are "safety" checkpoints that can help debug and check the

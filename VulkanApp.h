@@ -12,10 +12,13 @@
 #include <optional>
 #include <limits>
 #include <algorithm>
-
 #include <fstream>
 
 #include "Vertex.h"
+
+#include "imgui/imgui.h"
+#include "imgui/imgui_impl_sdl2.h"
+#include "imgui/imgui_impl_vulkan.h"
 
 const uint32_t WINDOW_WIDTH = 800;
 const uint32_t WINDOW_HEIGHT = 600;
@@ -41,6 +44,8 @@ const std::vector<const char*> deviceExtensions =
 #else
 	const bool enableValidationLayers = true;
 #endif
+
+void check_vk_result(VkResult err);
 
 /**
 	Struct that holds the index to the device's queue families
@@ -140,6 +145,8 @@ private:
 	bool framebufferResized = false;
 	bool isMinimized = false;
 
+	VkDescriptorPool imguiDescriptorPool;
+
 	void initWindow();
 	
 	void initVulkan();
@@ -190,6 +197,9 @@ private:
 	uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
 	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
+
+	void setupImgui();
+	void createImguiDescriptorPool();
 
 	static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 		VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
