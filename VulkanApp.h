@@ -15,6 +15,8 @@
 
 #include <fstream>
 
+#include "Vertex.h"
+
 const uint32_t WINDOW_WIDTH = 800;
 const uint32_t WINDOW_HEIGHT = 600;
 
@@ -61,6 +63,12 @@ struct QueueFamilyIndices
 	}
 };
 
+const std::vector<Vertex> vertices = {
+	{{0.0f, -0.5f}, {1.0f, 1.0f, 1.0f}},
+	{{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
+	{{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
+};
+
 /*
 	Holds details of the details for the swap chain supported such as:
 	Surface Capabilites: number of images in swap, width, height.
@@ -73,6 +81,7 @@ struct SwapChainSupportDetails
 	std::vector<VkSurfaceFormatKHR> formats;
 	std::vector<VkPresentModeKHR> presentModes;
 };
+
 
 class VulkanApp
 {
@@ -113,6 +122,9 @@ private:
 	std::vector<VkFence> inFlightFences;
 
 	uint32_t currentFrame = 0;
+
+	VkBuffer vertexBuffer;
+	VkDeviceMemory vertexBufferMemory;
 
 	bool framebufferResized = false;
 	bool isMinimized = false;
@@ -161,6 +173,11 @@ private:
 	
 	void setupDebugMessenger();
 	void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
+
+	void createVertexBuffer();
+	uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
+	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
+	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 
 	static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 		VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
