@@ -20,6 +20,8 @@
 #include "imgui/imgui_impl_sdl2.h"
 #include "imgui/imgui_impl_vulkan.h"
 
+#include "DirtGui.h"
+
 const uint32_t WINDOW_WIDTH = 800;
 const uint32_t WINDOW_HEIGHT = 600;
 
@@ -146,6 +148,9 @@ private:
 	bool isMinimized = false;
 
 	VkDescriptorPool imguiDescriptorPool;
+
+	//IMGUI
+	DirtGui gui;
 
 	void initWindow();
 	

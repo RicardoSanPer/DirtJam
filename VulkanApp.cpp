@@ -68,11 +68,9 @@ void VulkanApp::mainLoop()
 		{
 			continue;
 		}
-
-		ImGui_ImplVulkan_NewFrame();
-		ImGui_ImplSDL2_NewFrame();
-		ImGui::NewFrame();
-		ImGui::ShowDemoWindow();
+		//IMGUI
+		gui.ShowWindow();
+		//ImGui::ShowDemoWindow();
 
 		drawFrame();
 
