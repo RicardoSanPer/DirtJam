@@ -27,7 +27,7 @@ int main(int argc, char* argv[])
 		{
 			vertices.push_back({ 
 				{((float)i / size) - 0.5f,((float)j/ size) - 0.5f},
-				{ 1.0f, 1.0f, 1.0f }
+				{ i % 2, j % 2, 1.0f }
 				});
 		}
 	}
