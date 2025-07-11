@@ -14,8 +14,9 @@
 class DirtGui
 {
 private:
-	float myFloat = 0;
+	
 public:
+	float rotation = 0;
 	void ShowWindow();
 };
 

@@ -6,15 +6,9 @@ void DirtGui::ShowWindow()
 	ImGui_ImplSDL2_NewFrame();
 	ImGui::NewFrame();
 	ImGui::Begin("My Window");
-	if (ImGui::Button("My Button"))
-	{
-		std::cout << "Button Clicked" << std::endl;
-	}
 	//inputs return true when the value changes bewteen frames
 	//Use public flags to query in the vulkan app to change values only if they're changed?
-	if (ImGui::InputFloat("My Float", &myFloat))
-	{
-		std::cout << "Value changed" << std::endl;
-	}
+	ImGui::SliderFloat("My Float", &rotation, 0.0f, 360.0f);
+	
 	ImGui::End();
 }
