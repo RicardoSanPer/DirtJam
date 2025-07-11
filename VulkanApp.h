@@ -1,5 +1,7 @@
 #pragma once
 
+#define GLM_FORCE_RADIANS
+
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_vulkan.h>
 #include <vulkan/vulkan.h>
@@ -13,6 +15,7 @@
 #include <limits>
 #include <algorithm>
 #include <fstream>
+#include <chrono>
 
 #include "Vertex.h"
 
@@ -70,17 +73,12 @@ struct QueueFamilyIndices
 	}
 };
 
-//const std::vector<Vertex> vertices = {
-//	{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-//	{{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
-//	{{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
-//	{{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}},
-//};
-//
-//const std::vector<uint16_t> indices =
-//{
-//	0, 1, 2, 2, 3, 0
-//};
+struct UniformBufferObject
+{
+	glm::mat4 model;
+	glm::mat4 view;
+	glm::mat4 proj;
+};
 
 extern std::vector<Vertex> vertices;
 
@@ -126,6 +124,7 @@ private:
 	std::vector<VkImageView> swapChainImageViews;
 
 	VkRenderPass renderPass;
+	VkDescriptorSetLayout descriptorSetLayout;
 	VkPipelineLayout pipelineLayout;
 	VkPipeline graphicsPipeline;
 
@@ -148,6 +147,12 @@ private:
 	bool isMinimized = false;
 
 	VkDescriptorPool imguiDescriptorPool;
+
+	std::vector<VkBuffer> uniformBuffers;
+	std::vector<VkDeviceMemory> uniformBuffersMemory;
+	std::vector<void*> uniformBuffersMapped;
+	VkDescriptorPool descriptorPool;
+	std::vector<VkDescriptorSet> descriptorSets;
 
 	//IMGUI
 	DirtGui gui;
@@ -182,6 +187,12 @@ private:
 	void createGraphicsPipeline();
 	VkShaderModule createShaderModule(const std::vector<char>& code);
 	void createRenderPass();
+
+	void createDescriptorLayout();
+	void createUniformBuffers();
+	void updateUniformBuffer(uint32_t currentImage);
+	void createDescriptorPool();
+	void createDescriptorSets();
 
 	void createFrameBuffers();
 	void createCommandPool();
