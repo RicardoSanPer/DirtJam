@@ -2,9 +2,11 @@
 
 #include <iostream>
 
+#include <glm/glm.hpp>
 #include "imgui/imgui.h"
 #include "imgui/imgui_impl_sdl2.h"
 #include "imgui/imgui_impl_vulkan.h"
+#include "Camera.h"
 
 /*
 * 
@@ -12,11 +14,14 @@
 * 
 */ 
 class DirtGui
-{
-private:
-	
+{	
 public:
-	float rotation = 0;
+	Camera* camera;
+	float fps;
+	glm::vec3 pos;
+
 	void ShowWindow();
+	void MouseRotation(float dx, float dy);
+	glm::vec2 GetMovementInput();
 };
 

@@ -21,31 +21,6 @@ std::vector<uint16_t> indices;
 
 int main(int argc, char* argv[])
 {
-	for (int i = 0; i < size; i++)
-	{
-		for (int j = 0; j < size; j++)
-		{
-			vertices.push_back({ 
-				{((float)i / size) - 0.5f,((float)j/ size) - 0.5f},
-				{ i % 2, j % 2, 1.0f }
-				});
-		}
-	}
-
-	for (int i = 0; i < size-1; i++)
-	{
-		for (int j = 0; j < size-1; j++)
-		{
-			int currIndex = i + j * size;
-			indices.push_back(currIndex);
-			indices.push_back(currIndex + size);
-			indices.push_back(currIndex + size + 1);
-			indices.push_back(currIndex);
-			indices.push_back(currIndex + size + 1);
-			indices.push_back(currIndex + 1);
-		}
-	}
-
 	VulkanApp app;
 	try
 	{

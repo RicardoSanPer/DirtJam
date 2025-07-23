@@ -12,6 +12,8 @@ void check_vk_result(VkResult err)
 
 void VulkanApp::run()
 {
+	gui.camera = &camera;
+	mesh.CreateMesh();
 	initWindow();
 	initVulkan();
 	setupImgui();
@@ -60,7 +62,8 @@ void VulkanApp::mainLoop()
 
 	while (isRunning)
 	{
-		
+		gui.fps = 1.0f / deltaTime;
+
 		while (SDL_PollEvent(&windowEvent))
 		{
 			ImGui_ImplSDL2_ProcessEvent(&windowEvent);
@@ -69,7 +72,17 @@ void VulkanApp::mainLoop()
 				isRunning = false;
 				break;
 			}
+			if (windowEvent.type == SDL_MOUSEMOTION)
+			{
+				float dx = windowEvent.motion.xrel * deltaTime;
+				float dy = windowEvent.motion.yrel * deltaTime;
+				camera.UpdateRotation({ dx, dy });
+			}
 		}
+		
+		camera.FPSMovement(gui.GetMovementInput() * deltaTime);
+		gui.pos = camera.GetPos();
+
 		isMinimized = SDL_GetWindowFlags(window) & SDL_WINDOW_MINIMIZED;
 		if (isMinimized)
 		{
@@ -732,10 +745,10 @@ void VulkanApp::createGraphicsPipeline()
 	rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 	rasterizer.depthClampEnable = VK_FALSE;
 	rasterizer.rasterizerDiscardEnable = VK_FALSE;
-	rasterizer.polygonMode = VK_POLYGON_MODE_LINE;
+	rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
 	rasterizer.lineWidth = 1.0f;
 	rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-	rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+	rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
 	rasterizer.depthBiasEnable = VK_FALSE;		//depth bias is used for cases such as shadow mapping
 	rasterizer.depthBiasConstantFactor = 0.0f;
 	rasterizer.depthBiasClamp = 0.0f;
@@ -1042,7 +1055,7 @@ void VulkanApp::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imag
 	//vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 	// needs to be changed to use indexed drawing
 	//vkCmdDraw(commandBuffer, static_cast<uint32_t>(vertices.size()), 1, 0, 0);
-	vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
+	vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh.indices.size()), 1, 0, 0, 0);
 
 	//IMGUI
 	//Should be called during the render pass
@@ -1225,7 +1238,7 @@ void VulkanApp::createSyncObjects()
 
 void VulkanApp::createVertexBuffer()
 {
-	VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
+	VkDeviceSize bufferSize = sizeof(mesh.vertices[0]) * mesh.vertices.size();
 
 	//Create a staging buffer for use on the cpu
 	VkBuffer stagingBuffer;
@@ -1237,7 +1250,7 @@ void VulkanApp::createVertexBuffer()
 	//Maps memory of the buffer to the cpu address space so it can be accessed like normal memory
 	vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
 	//Copy the content
-	memcpy(data, vertices.data(), (size_t)bufferSize);
+	memcpy(data, mesh.vertices.data(), (size_t)bufferSize);
 	//Unmap when done writing
 	vkUnmapMemory(device, stagingBufferMemory);
 
@@ -1254,7 +1267,7 @@ void VulkanApp::createVertexBuffer()
 */ 
 void VulkanApp::createIndexBuffer()
 {
-	VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
+	VkDeviceSize bufferSize = sizeof(mesh.indices[0]) * mesh.indices.size();
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
 
@@ -1263,7 +1276,7 @@ void VulkanApp::createIndexBuffer()
 
 	void* data;
 	vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
-	memcpy(data, indices.data(), (size_t)bufferSize);
+	memcpy(data, mesh.indices.data(), (size_t)bufferSize);
 	vkUnmapMemory(device, stagingBufferMemory);
 
 	//Create actual buffer
@@ -1491,14 +1504,21 @@ void VulkanApp::createUniformBuffers()
 
 void VulkanApp::updateUniformBuffer(uint32_t currentImage)
 {
-	static auto startTime = std::chrono::high_resolution_clock::now();
-	static auto currentTime = std::chrono::high_resolution_clock::now();
-	float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+	startTime = currentTime;
+	currentTime = std::chrono::high_resolution_clock::now();
+	deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
 	UniformBufferObject ubo{};
-	ubo.model = glm::rotate(glm::mat4(1.0f), glm::radians(gui.rotation), glm::vec3(0.0f, 0.0f, 1.0f));
-	ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-	ubo.proj = glm::perspective(glm::radians(45.0f), (float)swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
+
+	glm::vec3 pos = camera.GetPos();
+	pos.x = glm::floor(pos.x);
+	pos.y = 0.0f;
+	pos.z = glm::floor(pos.z);
+
+	ubo.model = glm::rotate(glm::mat4(1.0f), glm::radians(0.0f), glm::vec3(0.0f, 0.0f, 1.0f)) * glm::translate(glm::mat4(1), pos);
+	//ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+	ubo.view = camera.GetViewMat();
+	ubo.proj = glm::perspective(glm::radians(45.0f), (float)swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 1000.0f);
 	ubo.proj[1][1] *= -1;
 
 	memcpy(uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
