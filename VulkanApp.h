@@ -24,6 +24,8 @@
 #include "imgui/imgui_impl_vulkan.h"
 
 #include "DirtGui.h"
+#include "Camera.h"
+#include "TerrainMesh.h"
 
 const uint32_t WINDOW_WIDTH = 800;
 const uint32_t WINDOW_HEIGHT = 600;
@@ -80,9 +82,6 @@ struct UniformBufferObject
 	glm::mat4 proj;
 };
 
-extern std::vector<Vertex> vertices;
-
-extern std::vector<uint16_t> indices;
 /*
 	Holds details of the details for the swap chain supported such as:
 	Surface Capabilites: number of images in swap, width, height.
@@ -103,6 +102,9 @@ public:
 	void run();
 
 private:
+	float deltaTime;
+	std::chrono::steady_clock::time_point startTime;
+	std::chrono::steady_clock::time_point currentTime;
 	const char* const windowName = "DIRT JAM";
 	SDL_Window* window;
 	bool isRunning = false;
@@ -156,6 +158,10 @@ private:
 
 	//IMGUI
 	DirtGui gui;
+
+	Camera camera;
+
+	TerrainMesh mesh;
 
 	void initWindow();
 	
