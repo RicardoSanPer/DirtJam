@@ -18,9 +18,9 @@ VkVertexInputBindingDescription Vertex::getBindingDescription()
     The attribute description describes how to extract the data of each attribute from a vertex.
     This is basically how to read the properties of a vertex (color, pos).
 */
-std::array<VkVertexInputAttributeDescription, 2> Vertex::getAttributeDescriptions()
+std::array<VkVertexInputAttributeDescription, 3> Vertex::getAttributeDescriptions()
 {
-    std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+    std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
     
     attributeDescriptions[0].binding = 0;  //from which bindind the data comes. Since it comes from the same binding/buffer, it is 0    
     attributeDescriptions[0].location = 0; //Which input of the shader to use
@@ -31,6 +31,11 @@ std::array<VkVertexInputAttributeDescription, 2> Vertex::getAttributeDescription
     attributeDescriptions[1].location = 1;
     attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
     attributeDescriptions[1].offset = offsetof(Vertex, color); 
+
+    attributeDescriptions[2].binding = 0;
+    attributeDescriptions[2].location = 2;
+    attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+    attributeDescriptions[2].offset = offsetof(Vertex, texCoord);
 
     return attributeDescriptions;
 }

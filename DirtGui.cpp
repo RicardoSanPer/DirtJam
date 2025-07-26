@@ -6,7 +6,7 @@ void DirtGui::ShowWindow()
 	ImGui_ImplSDL2_NewFrame();
 	ImGui::NewFrame();
 	ImGui::Begin("My Window");
-	ImGui::Text("FPS: %.2f", fps);
+	ImGui::Text("%0.2f ms (%.2f fps)", (1.0f/fps)*1000.0f, fps);
 	ImGui::Text("x: %.2f\ny: %.2f\nz: %.2f", pos.x, pos.y, pos.z);
 	//inputs return true when the value changes bewteen frames
 	//Use public flags to query in the vulkan app to change values only if they're changed?

@@ -18,9 +18,13 @@ void TerrainMesh::CreateCenterMesh()
 	{
 		for (int j = 0; j < gridSize; j++)
 		{
+			float x = (((float)i / (gridSize - 1)) - 0.5f) * size;
+			float y = (((float)j / (gridSize - 1)) - 0.5f) * size;
 			vertices.push_back({
-				{(((float)i / (gridSize-1)) - 0.5f) * size,(((float)j / (gridSize - 1)) - 0.5f) * size},
-				{ (float)j/gridSize, (float)i/gridSize, 1.0f }
+				
+				{x, y},
+				{(float)j / gridSize, (float)i / gridSize, 1.0f }, 
+				{x / size, y/size}
 				});
 		}
 	}
@@ -53,9 +57,12 @@ void TerrainMesh::CreateDonutMesh(int startingIndex, float scale, int level)
 			{
 				continue;
 			}
+			float x = (((float)i / (gridSize - 1)) - 0.5f) * size * 2 * scale;
+			float y = (((float)j / (gridSize - 1)) - 0.5f) * size * 2 * scale;
 			vertices.push_back({
-				{(((float)i / (gridSize - 1)) - 0.5f) * size * 2 * scale,(((float)j / (gridSize - 1)) - 0.5f) * size * 2 * scale},
-				{ val, val, val }
+				{x, y},
+				{ val, val, val }, 
+				{x / size, y / size}
 				});
 		}
 	}

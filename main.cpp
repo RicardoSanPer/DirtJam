@@ -1,4 +1,5 @@
 #define SDL_MAIN_HANDLED
+#define STB_IMAGE_IMPLEMENTATION
 
 #include <iostream>
 #include "VulkanApp.h"
