@@ -37,9 +37,9 @@ void TerrainMesh::CreateCenterMesh()
 			indices.push_back(currIndex);
 			indices.push_back(currIndex + gridSize);
 			indices.push_back(currIndex + gridSize + 1);
-			indices.push_back(currIndex);
+			/*indices.push_back(currIndex);
 			indices.push_back(currIndex + gridSize + 1);
-			indices.push_back(currIndex + 1);
+			indices.push_back(currIndex + 1);*/
 		}
 	}
 }

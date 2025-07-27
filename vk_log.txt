@@ -1,0 +1,4 @@
+Validation Error: [ VUID-VkPipelineRasterizationStateCreateInfo-polygonMode-01507 ] | MessageID = 0x7a8a9b39
+vkCreateGraphicsPipelines(): pCreateInfos[0].pRasterizationState->polygonMode is VK_POLYGON_MODE_LINE, but fillModeNonSolid feature is not enabled.
+The Vulkan spec states: If the fillModeNonSolid feature is not enabled, polygonMode must be VK_POLYGON_MODE_FILL or VK_POLYGON_MODE_FILL_RECTANGLE_NV (https://vulkan.lunarg.com/doc/view/1.4.313.2/windows/antora/spec/latest/chapters/primsrast.html#VUID-VkPipelineRasterizationStateCreateInfo-polygonMode-01507)
+
